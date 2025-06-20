@@ -1,9 +1,15 @@
+# app.py - Enhanced Flask backend with MCP web search integration
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import logging
 import os
 from datetime import datetime
 import base64
+import asyncio
+
+# Import our research agent
+from agents.research_agent import create_research_agent
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -27,11 +33,82 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def validate_url(url):
-    """Basic URL validation"""
-    if not url:
-        return True  # Optional field
-    return url.startswith(('http://', 'https://'))
+def is_fleetworthy_related(question: str) -> bool:
+    """
+    Check if a question is related to Fleetworthy services
+    This is a simple keyword-based check that can be enhanced later
+    """
+    fleetworthy_keywords = [
+        'fleet', 'truck', 'trucking', 'transportation', 'logistics', 'delivery',
+        'route', 'fuel', 'driver', 'vehicle', 'dispatch', 'maintenance',
+        'tracking', 'gps', 'shipping', 'cargo', 'freight', 'load',
+        'fleetworthy', 'cost', 'efficiency', 'optimization', 'management',
+        'safety', 'compliance', 'eld', 'hours of service', 'dot'
+    ]
+    
+    question_lower = question.lower()
+    return any(keyword in question_lower for keyword in fleetworthy_keywords)
+
+def generate_ai_response_sync(question: str, company_website: str = "", 
+                             company_description: str = "", file_info: dict = None) -> str:
+    """
+    Synchronous wrapper for the async AI response generation
+    """
+    # Create a new event loop for this thread
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    # Run the async function
+    return loop.run_until_complete(
+        generate_ai_response_async(question, company_website, company_description, file_info)
+    )
+
+async def generate_ai_response_async(question: str, company_website: str = "", 
+                             company_description: str = "", file_info: dict = None) -> str:
+    """
+    Generate AI response using research agent
+    """
+    try:
+        # Check if question is Fleetworthy-related
+        if not is_fleetworthy_related(question):
+            return "Sorry, but I can only help with questions about Fleetworthy's fleet management solutions. Please ask me about our transportation, logistics, or fleet management services!"
+        
+        # Create research agent (uses session-based memory)
+        session_id = "main"  # In production, use user-specific session IDs
+        research_agent = create_research_agent(session_id)
+        
+        # Prepare context for the research agent
+        context = {
+            'company_website': company_website,
+            'company_description': company_description,
+            'file_info': file_info
+        }
+        
+        # If we have company information, do company research
+        if company_website or company_description:
+            logger.info(f"Researching company: {company_website}")
+            company_research = await research_agent.research_company(
+                company_website, company_description
+            )
+            
+            # Now research the specific question with company context
+            question_research = await research_agent.research_question(question, context)
+            
+            # Combine the insights
+            response = f"{question_research}\n\n---\n\n**Additional Company Insights:**\n{company_research}"
+            
+        else:
+            # Just research the question without company context
+            response = await research_agent.research_question(question, context)
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error generating AI response: {e}")
+        return "I apologize, but I encountered an error while researching your question. Please try again, and if the issue persists, feel free to contact our sales team directly."
 
 @app.route('/')
 def home():
@@ -124,28 +201,17 @@ def chat():
         logger.info(f"File Info: {file_info}")
         logger.info("===================")
 
-        # TODO: This is where we'll integrate our MCP agents later
-        # For now, return a comprehensive test response
-        
-        response_parts = [
-            f"Thank you for your question: '{question}'"
-        ]
-        
-        if company_website:
-            response_parts.append(f"I see you've provided your company website: {company_website}")
-        
-        if company_description:
-            response_parts.append(f"I have information about your company operations and challenges.")
-        
-        if file_info:
-            response_parts.append(f"I've received your uploaded document: {file_info['name']} ({file_info['size']} bytes)")
-        
-        response_parts.append("I'm currently in testing mode. Soon I'll be able to research your company and provide detailed information about how Fleetworthy can help your business!")
-
-        response_message = " ".join(response_parts)
+        # Generate AI response using research agent
+        logger.info("Generating AI response...")
+        ai_response = generate_ai_response_sync(
+            question=question,
+            company_website=company_website,
+            company_description=company_description,
+            file_info=file_info
+        )
 
         return jsonify({
-            "message": response_message,
+            "message": ai_response,
             "received_data": {
                 "question": question,
                 "has_website": bool(company_website),
@@ -187,6 +253,12 @@ def test_endpoint():
         "max_file_size": app.config['MAX_CONTENT_LENGTH'],
         "allowed_extensions": list(ALLOWED_EXTENSIONS)
     })
+
+def validate_url(url):
+    """Basic URL validation"""
+    if not url:
+        return True  # Optional field
+    return url.startswith(('http://', 'https://'))
 
 @app.errorhandler(413)
 def too_large(e):
