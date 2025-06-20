@@ -1,25 +1,169 @@
-# app.py
-
 from flask import Flask, request, jsonify
-from flask_cors import CORS # Import CORS for handling cross-origin requests
+from flask_cors import CORS
+import logging
+import os
+from datetime import datetime
+import base64
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-# Enable CORS for all origins. In a production environment, you would restrict this
-# to specific domains. For now, this allows your frontend to connect.
+# Enable CORS for all origins (restrict in production)
 CORS(app)
+
+# Configuration
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB max file size
+UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'doc', 'docx'}
+
+# Create upload directory if it doesn't exist
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
+def allowed_file(filename):
+    """Check if file extension is allowed"""
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def validate_url(url):
+    """Basic URL validation"""
+    if not url:
+        return True  # Optional field
+    return url.startswith(('http://', 'https://'))
 
 @app.route('/')
 def home():
+    """Health check endpoint"""
+    return jsonify({
+        "message": "Fleetworthy Sales Agent API is running!",
+        "timestamp": datetime.now().isoformat(),
+        "status": "healthy"
+    })
+
+@app.route('/api/chat', methods=['POST'])
+def chat():
     """
-    A simple home route to confirm the server is running.
+    Main chat endpoint that receives all frontend data
+    Expected JSON payload:
+    {
+        "question": "User's question",
+        "company_website": "https://example.com",
+        "company_description": "About the company",
+        "file_data": "base64_encoded_file_data",
+        "file_name": "document.pdf",
+        "file_type": "application/pdf"
+    }
     """
-    return "Fleetworthy Sales Agent API is running!"
+    try:
+        # Log the incoming request
+        logger.info(f"Received chat request from {request.remote_addr}")
+        
+        # Check if request contains JSON
+        if not request.is_json:
+            return jsonify({"error": "Request must be JSON"}), 400
+
+        data = request.get_json()
+        logger.info(f"Request data keys: {list(data.keys())}")
+
+        # Extract and validate required fields
+        question = data.get('question', '').strip()
+        if not question:
+            return jsonify({"error": "Question is required"}), 400
+
+        # Extract optional fields
+        company_website = data.get('company_website', '').strip()
+        company_description = data.get('company_description', '').strip()
+        file_data = data.get('file_data')
+        file_name = data.get('file_name')
+        file_type = data.get('file_type')
+
+        # Validate URL if provided
+        if company_website and not validate_url(company_website):
+            return jsonify({"error": "Invalid website URL format"}), 400
+
+        # Process file if provided
+        file_info = None
+        if file_data and file_name:
+            try:
+                # Validate file type
+                if not allowed_file(file_name):
+                    return jsonify({"error": f"File type not allowed. Allowed types: {', '.join(ALLOWED_EXTENSIONS)}"}), 400
+                
+                # Decode base64 file data
+                file_content = base64.b64decode(file_data)
+                file_size = len(file_content)
+                
+                # Check file size
+                if file_size > app.config['MAX_CONTENT_LENGTH']:
+                    return jsonify({"error": "File too large. Maximum size is 5MB"}), 400
+                
+                # Save file (for testing purposes)
+                file_path = os.path.join(UPLOAD_FOLDER, f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file_name}")
+                with open(file_path, 'wb') as f:
+                    f.write(file_content)
+                
+                file_info = {
+                    "name": file_name,
+                    "type": file_type,
+                    "size": file_size,
+                    "saved_path": file_path
+                }
+                logger.info(f"File saved: {file_name} ({file_size} bytes)")
+                
+            except Exception as e:
+                logger.error(f"File processing error: {str(e)}")
+                return jsonify({"error": "Error processing uploaded file"}), 400
+
+        # Log all received data (for testing)
+        logger.info("=== RECEIVED DATA ===")
+        logger.info(f"Question: {question}")
+        logger.info(f"Company Website: {company_website}")
+        logger.info(f"Company Description: {company_description[:100]}..." if len(company_description) > 100 else company_description)
+        logger.info(f"File Info: {file_info}")
+        logger.info("===================")
+
+        # TODO: This is where we'll integrate our MCP agents later
+        # For now, return a comprehensive test response
+        
+        response_parts = [
+            f"Thank you for your question: '{question}'"
+        ]
+        
+        if company_website:
+            response_parts.append(f"I see you've provided your company website: {company_website}")
+        
+        if company_description:
+            response_parts.append(f"I have information about your company operations and challenges.")
+        
+        if file_info:
+            response_parts.append(f"I've received your uploaded document: {file_info['name']} ({file_info['size']} bytes)")
+        
+        response_parts.append("I'm currently in testing mode. Soon I'll be able to research your company and provide detailed information about how Fleetworthy can help your business!")
+
+        response_message = " ".join(response_parts)
+
+        return jsonify({
+            "message": response_message,
+            "received_data": {
+                "question": question,
+                "has_website": bool(company_website),
+                "has_description": bool(company_description),
+                "has_file": bool(file_info),
+                "file_info": file_info
+            },
+            "timestamp": datetime.now().isoformat()
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error in chat endpoint: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/hello', methods=['POST'])
 def hello_world():
     """
-    API endpoint that accepts a POST request with a JSON body.
-    It expects a 'name' field in the JSON and returns a personalized greeting.
+    Legacy endpoint for backward compatibility
     """
     if not request.is_json:
         return jsonify({"error": "Request must be JSON"}), 400
@@ -33,8 +177,34 @@ def hello_world():
     else:
         return jsonify({"error": "Name field is required"}), 400
 
-if __name__ == '__main__':
-    # This runs the Flask app in debug mode.
-    # For deployment, a production-ready WSGI server like Gunicorn is used.
-    app.run(debug=True, host='0.0.0.0', port=5000)
+@app.route('/api/test', methods=['GET'])
+def test_endpoint():
+    """Test endpoint to verify API is working"""
+    return jsonify({
+        "status": "API is working!",
+        "timestamp": datetime.now().isoformat(),
+        "upload_folder": UPLOAD_FOLDER,
+        "max_file_size": app.config['MAX_CONTENT_LENGTH'],
+        "allowed_extensions": list(ALLOWED_EXTENSIONS)
+    })
 
+@app.errorhandler(413)
+def too_large(e):
+    """Handle file too large error"""
+    return jsonify({"error": "File too large. Maximum size is 5MB"}), 413
+
+@app.errorhandler(404)
+def not_found(e):
+    """Handle 404 errors"""
+    return jsonify({"error": "Endpoint not found"}), 404
+
+@app.errorhandler(500)
+def internal_error(e):
+    """Handle 500 errors"""
+    logger.error(f"Internal server error: {str(e)}")
+    return jsonify({"error": "Internal server error"}), 500
+
+if __name__ == '__main__':
+    # Development server
+    logger.info("Starting Fleetworthy Sales API in development mode...")
+    app.run(debug=True, host='0.0.0.0', port=5000)
