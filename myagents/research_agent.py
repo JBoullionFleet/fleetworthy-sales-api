@@ -1,3 +1,5 @@
+# research_agent.py - Web research agent using MCP servers
+
 import asyncio
 from contextlib import AsyncExitStack
 from datetime import datetime
@@ -31,29 +33,7 @@ class SimpleResearchAgent:
     async def research_company(self, company_website: str, company_description: str = "") -> str:
         """Research a company using web search"""
         
-        # For now, return a mock response
-        # We'll implement the real MCP integration next
-        
-        research_summary = f"""
-        Based on my research of {company_website}:
-        
-        🔍 **Company Analysis:**
-        - Website: {company_website}
-        - Description: {company_description if company_description else "No description provided"}
-        
-        📊 **Potential Fleetworthy Applications:**
-        - Fleet management optimization
-        - Route planning and fuel efficiency
-        - Maintenance scheduling
-        - Driver performance monitoring
-        
-        💡 **Recommended Next Steps:**
-        - Conduct a fleet audit to identify specific inefficiencies
-        - Implement GPS tracking for real-time visibility
-        - Set up predictive maintenance schedules
-        
-        *Note: This is a simplified response. Advanced research capabilities coming soon!*
-        """
+        research_summary = f"""I see you're with {company_website if company_website else 'your company'}! Based on your {company_description if company_description else 'transportation operations'}, our GPS tracking and route optimization could really help cut fuel costs by about 15-25%. Would you like to see a quick demo of how this works for companies like yours?"""
         
         return research_summary.strip()
     
@@ -64,37 +44,10 @@ class SimpleResearchAgent:
         company_info = ""
         if context:
             website = context.get('company_website', '')
-            description = context.get('company_description', '')
-            if website or description:
-                company_info = f"\nCompany context: {website} - {description}"
+            if website:
+                company_info = f" for {website}"
         
-        research_response = f"""
-        Regarding your question: "{question}"{company_info}
-        
-        🚛 **Fleetworthy Solutions:**
-        
-        **Fuel Cost Reduction:**
-        - Advanced route optimization algorithms
-        - Real-time traffic and weather integration
-        - Driver behavior monitoring and coaching
-        - Predictive maintenance to ensure optimal engine performance
-        
-        **Operational Efficiency:**
-        - Automated dispatch and scheduling
-        - Load optimization tools
-        - Electronic logging device (ELD) compliance
-        - Integration with existing transportation management systems
-        
-        **Cost Savings Potential:**
-        - Typical customers see 15-25% reduction in fuel costs
-        - 20-30% improvement in on-time deliveries
-        - 40% reduction in paperwork and administrative tasks
-        
-        📞 **Next Steps:**
-        I'd recommend scheduling a demo to see how these solutions would work specifically for your operation.
-        
-        *Note: Advanced web research and personalized recommendations coming soon!*
-        """
+        research_response = f"""Great question! For fleet management{company_info}, our route optimization and fuel tracking typically help companies save 15-25% on fuel costs while improving on-time deliveries by about 20%. Plus our ELD compliance features handle all the DOT requirements automatically. I'd love to show you how this could work specifically for your operation - would you be interested in a quick demo?"""
         
         return research_response.strip()
 
@@ -111,26 +64,32 @@ class MCPResearchAgent:
         """Create the research agent with MCP servers"""
         
         instructions = f"""
-        You are a research specialist for Fleetworthy, a fleet management software company.
+        You are a friendly sales agent for Fleetworthy, a fleet management software company.
         
-        Your role is to:
-        1. Research companies and their transportation/logistics operations
-        2. Identify specific challenges they might face
-        3. Recommend relevant Fleetworthy solutions
-        4. Use web search to gather current information about companies
-        5. Store important findings in your memory for future reference
+        Your style: Conversational, helpful, and concise. Think of this as a casual business chat, not a formal presentation.
+        
+        Your process:
+        1. Research the company using web search and website content
+        2. Understand their fleet operations and challenges
+        3. Suggest 2-3 relevant Fleetworthy solutions in a friendly way
+        4. Keep responses to 2-4 sentences maximum
+        5. Store key findings in memory for future conversations
         
         Available Fleetworthy Solutions:
         - GPS Fleet Tracking & Real-time Visibility
-        - Route Optimization & Fuel Management
+        - Route Optimization & Fuel Management  
         - Driver Behavior Monitoring & Safety
         - Maintenance Management & Scheduling
         - ELD Compliance & Hours of Service
         - Dispatch & Load Optimization
-        - Integration with existing TMS/ERP systems
+        - Cost Analytics & Reporting
         
-        Always focus on how Fleetworthy can solve real business problems.
-        Be specific about potential cost savings and efficiency gains.
+        Response format: 
+        - Keep it conversational and brief
+        - Focus on 1-2 key benefits that match their business
+        - Include one specific benefit (like "15% fuel savings")
+        - End with a friendly next step suggestion
+        
         Current datetime: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
         """
         
@@ -146,18 +105,21 @@ class MCPResearchAgent:
         """Research a company using MCP tools"""
         
         research_prompt = f"""
-        Research this company for potential Fleetworthy sales opportunities:
+        Research this company and provide a brief, conversational response:
         
         Company Website: {company_website}
         Company Description: {company_description}
         
-        Please:
-        1. Search for information about this company's operations
-        2. Identify their potential transportation/logistics challenges  
-        3. Recommend specific Fleetworthy solutions that would benefit them
-        4. Store key findings in memory for future reference
+        Research steps:
+        1. Search for basic info about this company's transportation/logistics operations
+        2. If website provided, fetch key details about their business
+        3. Identify 1-2 main challenges they likely face
+        4. Suggest relevant Fleetworthy solutions in 2-3 friendly sentences
+        5. Store key findings in memory
         
-        Focus on actionable insights that could help in a sales conversation.
+        Response style: Casual and conversational, like you're having a friendly business chat.
+        Length: Keep it to 2-4 sentences maximum.
+        Focus: One key benefit that matches their specific business needs.
         """
         
         try:
@@ -170,7 +132,7 @@ class MCPResearchAgent:
                 ]
                 
                 agent = await self._create_agent(mcp_servers)
-                result = await Runner.run(agent, research_prompt, max_turns=10)
+                result = await Runner.run(agent, research_prompt, max_turns=15)
                 return result.final_output
                 
         except Exception as e:
@@ -190,15 +152,17 @@ class MCPResearchAgent:
                 context_info = f"\nCompany context - Website: {website}, Description: {description}"
         
         research_prompt = f"""
-        A potential customer has asked: "{question}"{context_info}
+        A potential customer asked: "{question}"{context_info}
         
-        Please:
-        1. Search for current information relevant to their question
-        2. Provide specific Fleetworthy solutions that address their needs
-        3. Include relevant industry insights or trends if applicable
-        4. Store important findings for future reference
+        Provide a brief, helpful response:
+        1. Search for relevant industry information if needed
+        2. Give a conversational answer about Fleetworthy solutions
+        3. Keep it to 2-4 sentences maximum
+        4. Include one specific benefit or statistic
+        5. Store any useful findings in memory
         
-        Focus on providing actionable, sales-oriented responses about Fleetworthy's capabilities.
+        Response style: Friendly and conversational, not a formal sales pitch.
+        Focus: Direct answer to their question with one relevant Fleetworthy solution.
         """
         
         try:
@@ -211,7 +175,7 @@ class MCPResearchAgent:
                 ]
                 
                 agent = await self._create_agent(mcp_servers)
-                result = await Runner.run(agent, research_prompt, max_turns=10)
+                result = await Runner.run(agent, research_prompt, max_turns=15)
                 return result.final_output
                 
         except Exception as e:

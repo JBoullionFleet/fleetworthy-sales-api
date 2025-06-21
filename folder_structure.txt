@@ -1,0 +1,26 @@
+backend/
+├── app.py                      # Main Flask application
+├── routes/
+│   ├── chat.py                # Chat endpoints
+│   ├── upload.py              # File upload handling
+│   └── company.py             # Company research endpoints
+├── services/
+│   ├── agent_service.py       # Agent orchestration
+│   ├── mcp_service.py         # MCP server management
+│   └── rag_service.py         # RAG implementation
+├── models/
+│   ├── conversation.py        # Conversation state management
+│   └── company_profile.py     # Company information models
+├── config/
+│   ├── mcp_config.py          # MCP server configurations
+│    └── agent_config.py        # Agent configurations
+├── fleetworthy_mcp_servers/
+│    ├── sales_knowledge_server.py    # RAG system for Fleetworthy materials
+│    ├── company_research_server.py   # Web search and company analysis
+│    ├── memory_server.py            # Agent memory for conversations
+│    └── file_processing_server.py   # Handle uploaded company documents
+└── agents/
+    ├── sales_agent.py              # Main conversational sales agent
+    ├── research_agent.py           # Web research specialist
+    ├── knowledge_agent.py          # RAG specialist for Fleetworthy content
+    └── conversation_manager.py     # Orchestrates multi-agent interactions

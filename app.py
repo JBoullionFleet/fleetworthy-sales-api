@@ -9,7 +9,8 @@ import base64
 import asyncio
 
 # Import our research agent
-from agents.research_agent import create_research_agent
+from myagents.research_agent import create_research_agent
+from services.knowledge_base import initialize_knowledge_base
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -27,6 +28,10 @@ ALLOWED_EXTENSIONS = {'txt', 'pdf', 'doc', 'docx'}
 # Create upload directory if it doesn't exist
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
+
+# Initialize knowledge base
+print("Initializing Fleetworthy knowledge base...")
+initialize_knowledge_base()
 
 def allowed_file(filename):
     """Check if file extension is allowed"""
@@ -97,14 +102,21 @@ async def generate_ai_response_async(question: str, company_website: str = "",
             # Now research the specific question with company context
             question_research = await research_agent.research_question(question, context)
             
-            # Combine the insights
-            response = f"{question_research}\n\n---\n\n**Additional Company Insights:**\n{company_research}"
+            # Enhance with knowledge base information
+            enhanced_response = knowledge_base.generate_enhanced_response(
+                question, f"{question_research}\n\nCompany Research: {company_research}"
+            )
+            
+            return enhanced_response
             
         else:
             # Just research the question without company context
-            response = await research_agent.research_question(question, context)
-        
-        return response
+            web_response = await research_agent.research_question(question, context)
+            
+            # Enhance with knowledge base information
+            enhanced_response = knowledge_base.generate_enhanced_response(question, web_response)
+            
+            return enhanced_response
         
     except Exception as e:
         logger.error(f"Error generating AI response: {e}")
@@ -253,12 +265,6 @@ def test_endpoint():
         "max_file_size": app.config['MAX_CONTENT_LENGTH'],
         "allowed_extensions": list(ALLOWED_EXTENSIONS)
     })
-
-def validate_url(url):
-    """Basic URL validation"""
-    if not url:
-        return True  # Optional field
-    return url.startswith(('http://', 'https://'))
 
 @app.errorhandler(413)
 def too_large(e):
