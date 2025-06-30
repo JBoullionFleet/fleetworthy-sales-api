@@ -4,8 +4,9 @@ gunicorn==21.2.0
 requests==2.31.0
 python-dotenv==1.0.0
 openai-agents
-# RAG and document processing
+# RAG and document processing - compatible versions
 PyPDF2==3.0.1
-chromadb>=1.0.0
-sentence-transformers==2.2.2
-openai==1.87.0
+chromadb==0.4.24
+sentence-transformers==2.7.0
+openai>=1.87.0
+huggingface-hub==0.20.3

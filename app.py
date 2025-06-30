@@ -10,7 +10,7 @@ import asyncio
 
 # Import our research agent
 from myagents.research_agent import create_research_agent
-from services.knowledge_base import initialize_knowledge_base
+from services.knowledge_base import initialize_knowledge_base, knowledge_base
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -37,6 +37,13 @@ def allowed_file(filename):
     """Check if file extension is allowed"""
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def validate_url(url):
+    """Basic URL validation"""
+    if not url:
+        return True  # Optional field
+    return url.startswith(('http://', 'https://'))
 
 def is_fleetworthy_related(question: str) -> bool:
     """
